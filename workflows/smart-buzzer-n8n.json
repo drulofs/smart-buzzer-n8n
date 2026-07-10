@@ -1,0 +1,223 @@
+{
+  "name": "Smart Buzzer - Magic Word Access",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "intercom-unlock",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Incoming Intercom Call",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [240, 304],
+      "webhookId": "00000000-0000-4000-8000-000000000002"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "magic-word",
+              "name": "magicWord",
+              "type": "string",
+              "value": "open sesame"
+            },
+            {
+              "id": "unlock-digit",
+              "name": "unlockDigit",
+              "type": "string",
+              "value": "6"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [464, 304],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.SpeechResult }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "id": "has-speech"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "Check If Transcription",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [688, 304]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Gather input=\"speech\" action=\"{{ $json.headers['x-forwarded-proto'] }}://{{ $json.headers.host }}/webhook/{{ $json.webhookUrl.split('/webhook/')[1] }}\" speechTimeout=\"auto\" language=\"en-US\">\n    <Say>Please say the magic word</Say>\n  </Gather>\n  <Hangup/>\n</Response>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "Respond With Gather",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [912, 208]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "transcription",
+              "name": "transcription",
+              "type": "string",
+              "value": "={{ $json.body.SpeechResult || \"\" }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000006",
+      "name": "Extract Transcription",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [912, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.transcription }}",
+              "rightValue": "={{ $json.magicWord }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "id": "matches-magic-word"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-4000-8000-000000000007",
+      "name": "Check Magic Word",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1136, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Play digits=\"w{{ $json.unlockDigit }}\"/>\n  <Pause length=\"2\"/>\n  <Say>Access granted</Say>\n</Response>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "00000000-0000-4000-8000-000000000008",
+      "name": "Send Unlock Digit",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1360, 304]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say>That is not the magic word</Say>\n  <Hangup/>\n</Response>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "00000000-0000-4000-8000-000000000009",
+      "name": "Reject Call",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1360, 496]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Incoming Intercom Call": {
+      "main": [[{"node": "Configuration", "type": "main", "index": 0}]]
+    },
+    "Configuration": {
+      "main": [[{"node": "Check If Transcription", "type": "main", "index": 0}]]
+    },
+    "Check If Transcription": {
+      "main": [
+        [{"node": "Extract Transcription", "type": "main", "index": 0}],
+        [{"node": "Respond With Gather", "type": "main", "index": 0}]
+      ]
+    },
+    "Extract Transcription": {
+      "main": [[{"node": "Check Magic Word", "type": "main", "index": 0}]]
+    },
+    "Check Magic Word": {
+      "main": [
+        [{"node": "Send Unlock Digit", "type": "main", "index": 0}],
+        [{"node": "Reject Call", "type": "main", "index": 0}]
+      ]
+    },
+    "Send Unlock Digit": {
+      "main": [[]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
